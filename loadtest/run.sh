@@ -45,8 +45,23 @@ machine() {
   echo "${cpu}, ${mem} GB RAM host; Docker VM: ${vm}"
 }
 
+# Refuse to start with too little disk: Docker Desktop/Colima keep their VM disk
+# as a file on the host, and a full host disk corrupts the VM's filesystem.
+check_disk() {
+  local free_gb
+  free_gb=$(df -k "$PWD" | awk 'NR==2 {printf "%d", $4/1024/1024}')
+  if (( free_gb < 4 )); then
+    echo "Only ${free_gb} GB free on the host disk; free at least 4 GB before running load tests." >&2
+    exit 1
+  fi
+}
+
 start_stack() { # $1 = queue mode
-  echo "==> stack: QUEUE_MODE=$1, $WORKERS workers"
+  check_disk
+  echo "==> stack: QUEUE_MODE=$1, $WORKERS workers (fresh volumes)"
+  # Every test starts from empty Postgres/Redpanda volumes: results do not
+  # depend on earlier runs, and disk use does not pile up across runs.
+  docker compose down -v --remove-orphans >/dev/null 2>&1 || true
   QUEUE_MODE=$1 docker compose up -d --build --wait --scale worker="$WORKERS" >/dev/null
   # Fresh sink so its in-memory id table only holds this run.
   docker compose restart sink >/dev/null

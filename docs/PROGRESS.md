@@ -54,6 +54,43 @@ Gate evidence:
 Fixed during the gate: SSRF integration test inserted its DNS-rebinding
 endpoint after sending the event (test bug); now sends a fresh event.
 
+### Disk incident (2026-11-20)
+The host Mac ran out of disk (683 MB free). Colima keeps its VM disk as a host
+file, so the VM's ext4 journal aborted mid-load-test and Docker went
+read-only. After the owner freed space: `e2fsck -fy` on the VM data disk (clean
+repair, no data lost), `fstrim` to return freed blocks, and `loadtest/run.sh`
+now refuses to start below 4 GB free and resets Hooklane's volumes per test.
+
+### Phase 2: Broker — gate passed (2026-11-20)
+Built: queue abstraction (`queue/`), outbox rows in the ingest transaction,
+relay (`FOR UPDATE SKIP LOCKED`, acks=all, idempotent producer, marks published
+only after every ack), 64-partition topic keyed by endpoint id, Kafka worker
+with per-endpoint lanes, contiguous offset commits, per-partition pause/resume
+backpressure, commit-on-revoke, scheduler re-queueing through the outbox,
+pending-rescue safety net, Redpanda + Console in Compose.
+
+Gate evidence:
+- All integration tests pass in both modes, including
+  `relay_duplicate_gives_one_request_kafka` (same outbox row published twice ->
+  1 HTTP request) and `worker_crash_{pg,kafka}` (worker runtime killed
+  mid-request -> reaper -> delivered, `worker_lost` attempt logged).
+- 10k smoke runs on fresh volumes (`docs/results/2026-11-20-steady-*-10000.md`):
+  postgres 9748 accepted, **0 lost, 0 duplicates**, p99 75 ms;
+  kafka 9746 accepted, **0 lost, 0 duplicates**, p99 46 ms.
+
+### Phase 3: Protection and security — gate passed (2026-11-20)
+Built: token bucket, circuit breaker, parking (no attempt used), 429 lane
+pause, lane overflow parking, auto-disable, recover, system events (no loops),
+SSRF resolver + literal-IP check, no redirects, no proxy, HTTPS flag, secret
+rotation (two signatures for 24 h), AES-256-GCM secret encryption.
+
+Gate evidence: integration suite 34/34 (twice in a row), adding
+`secret_rotation_*`, `auto_disable_*`, `lane_overflow_parks_excess_kafka`,
+`rate_limit_*` to the existing breaker / SSRF / redirect tests.
+`slow_does_not_block_{pg,kafka}`: with both endpoints on one partition and 5
+deliveries queued on a 3-second endpoint, the healthy endpoint is served in
+well under 1.5 s.
+
 ## Requirements checklist (spec section 23)
 
 **Architecture**

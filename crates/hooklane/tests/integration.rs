@@ -965,3 +965,215 @@ async fn api_validation() {
     assert_eq!(r.status(), 200);
     env.finish().await;
 }
+
+// ---------------------------------------------------------------------------
+// Secret rotation: both signatures during the overlap window
+// ---------------------------------------------------------------------------
+
+async fn secret_rotation(mode: QueueMode) {
+    let env = TestEnv::start(mode).await;
+    let (ep, old_secret) = env.create_endpoint("/ok/rot", None).await;
+    let (status, v) = env
+        .api(
+            Method::POST,
+            &format!("/v1/endpoints/{ep}/rotate-secret"),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200);
+    let new_secret = v["secret"].as_str().expect("secret").to_string();
+    assert_ne!(new_secret, old_secret);
+    let (_, v) = env
+        .api(Method::GET, &format!("/v1/endpoints/{ep}/secret"), None)
+        .await;
+    assert_eq!(v["secret"], new_secret.as_str());
+    assert_eq!(v["previous_secret"], old_secret.as_str());
+
+    let ev = env.send_event("x.rot", json!({"k": "v"})).await;
+    env.wait_status(ev, ep, "succeeded", T).await;
+    let r = env.sink.requests("/ok/rot").remove(0);
+    assert_eq!(
+        r.signature.split(' ').count(),
+        2,
+        "two signatures during rotation: {}",
+        r.signature
+    );
+    assert_eq!(
+        r.sig_ok,
+        Some(true),
+        "the sink still holds the OLD secret and verifies"
+    );
+    // A customer who already switched to the new secret verifies too.
+    let mut headers = http::HeaderMap::new();
+    headers.insert("webhook-id", r.webhook_id.parse().expect("h"));
+    headers.insert("webhook-timestamp", r.timestamp.parse().expect("h"));
+    headers.insert("webhook-signature", r.signature.parse().expect("h"));
+    standardwebhooks::Webhook::new(&new_secret)
+        .expect("wh")
+        .verify(r.body.as_bytes(), &headers)
+        .expect("new secret verifies");
+    env.finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn secret_rotation_pg() {
+    secret_rotation(QueueMode::Postgres).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn secret_rotation_kafka() {
+    secret_rotation(QueueMode::Kafka).await;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-disable after continuous failure, system event, then recover
+// ---------------------------------------------------------------------------
+
+async fn auto_disable_and_recover(mode: QueueMode) {
+    let env = TestEnv::with(Options::new(mode).config(|c| {
+        c.auto_disable_after_secs = 2;
+        c.auto_disable_interval_ms = 200;
+        c.retry_schedule_ms = vec![1_000; 7];
+    }))
+    .await;
+    let t0 = chrono::Utc::now() - chrono::Duration::seconds(5);
+    env.sink.set_switch("/switch/ad", 500);
+    let (ep, _) = env.create_endpoint("/switch/ad", Some(vec!["x.ad"])).await;
+    let (_watch, _) = env
+        .create_endpoint("/ok/adwatch", Some(vec!["hooklane.endpoint.disabled"]))
+        .await;
+    let ev = env.send_event("x.ad", json!({})).await;
+
+    let disabled = wait_until(T, || async {
+        let (_, v) = env
+            .api(Method::GET, &format!("/v1/endpoints/{ep}"), None)
+            .await;
+        v["status"] == "disabled"
+    })
+    .await;
+    assert!(
+        disabled,
+        "endpoint auto-disabled after failing continuously"
+    );
+    let d = env.wait_status(ev, ep, "failed", T).await;
+    assert_eq!(d.last_error.as_deref(), Some("endpoint_disabled"));
+    let notified = wait_until(T, || async { !env.sink.requests("/ok/adwatch").is_empty() }).await;
+    assert!(notified, "hooklane.endpoint.disabled delivered");
+    let body: serde_json::Value =
+        serde_json::from_str(&env.sink.requests("/ok/adwatch")[0].body).expect("json");
+    assert_eq!(body["type"], "hooklane.endpoint.disabled");
+    assert_eq!(body["data"]["endpoint_id"], ep.to_string());
+
+    // The customer fixes their server, re-enables, and recovers the backlog.
+    env.sink.set_switch("/switch/ad", 200);
+    let (_, v) = env
+        .api(
+            Method::PATCH,
+            &format!("/v1/endpoints/{ep}"),
+            Some(json!({"status": "active"})),
+        )
+        .await;
+    assert_eq!(v["status"], "active");
+    let (_, v) = env
+        .api(
+            Method::POST,
+            &format!("/v1/endpoints/{ep}/recover"),
+            Some(json!({"since": t0.to_rfc3339()})),
+        )
+        .await;
+    assert_eq!(v["requeued"], 1);
+    // The worker's endpoint cache may hold the 'disabled' row for up to 30 s.
+    env.wait_status(ev, ep, "succeeded", Duration::from_secs(60))
+        .await;
+    env.finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn auto_disable_pg() {
+    auto_disable_and_recover(QueueMode::Postgres).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn auto_disable_kafka() {
+    auto_disable_and_recover(QueueMode::Kafka).await;
+}
+
+// ---------------------------------------------------------------------------
+// Lane overflow parks the excess without using attempts (Kafka mode)
+// ---------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn lane_overflow_parks_excess_kafka() {
+    let env = TestEnv::with(
+        Options::new(QueueMode::Kafka)
+            .partitions(1)
+            .config(|c| c.lane_max_queued = 3),
+    )
+    .await;
+    let (ep, _) = env.create_endpoint("/slow/lo?ms=300", None).await;
+    let mut events = Vec::new();
+    for n in 0..15 {
+        events.push(env.send_event("x.lo", json!({"n": n})).await);
+    }
+    let parked = wait_until(T, || async {
+        env.count("SELECT count(*) FROM deliveries WHERE last_error = 'lane_overflow' AND attempt_count = 0").await > 0
+    })
+    .await;
+    assert!(
+        parked,
+        "excess deliveries were parked, with no attempt used"
+    );
+    for ev in &events {
+        let d = env
+            .wait_status(*ev, ep, "succeeded", Duration::from_secs(60))
+            .await;
+        assert_eq!(d.attempt_count, 1, "parking consumed no attempt");
+    }
+    assert_eq!(
+        env.sink.stats("/slow/lo").requests,
+        15,
+        "each delivered exactly once"
+    );
+    env.finish().await;
+}
+
+// ---------------------------------------------------------------------------
+// Per-endpoint rate limit (token bucket)
+// ---------------------------------------------------------------------------
+
+async fn rate_limit_spreads_requests(mode: QueueMode) {
+    let env = TestEnv::start(mode).await;
+    let (status, v) = env
+        .api(
+            Method::POST,
+            "/v1/endpoints",
+            Some(json!({"url": format!("{}/ok/rl5", env.sink_url), "rate_limit_per_sec": 5})),
+        )
+        .await;
+    assert_eq!(status, 201, "{v}");
+    for n in 0..20 {
+        env.send_event("x.rl", json!({"n": n})).await;
+    }
+    let all = wait_until(Duration::from_secs(30), || async {
+        env.sink.stats("/ok/rl5").requests >= 20
+    })
+    .await;
+    assert!(all);
+    let times: Vec<u64> = env
+        .sink
+        .requests("/ok/rl5")
+        .iter()
+        .map(|r| r.received_ms)
+        .collect();
+    let span = times.iter().max().expect("max") - times.iter().min().expect("min");
+    // Burst of 5, then 15 more at 5/s => at least ~3 s.
+    assert!(span >= 2_500, "20 requests at 5/s took only {span} ms");
+    env.finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rate_limit_pg() {
+    rate_limit_spreads_requests(QueueMode::Postgres).await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rate_limit_kafka() {
+    rate_limit_spreads_requests(QueueMode::Kafka).await;
+}
