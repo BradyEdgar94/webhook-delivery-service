@@ -27,8 +27,10 @@ def stat(title, expr, x, w=4, unit="short", desc="", decimals=None, thresholds=N
          "fieldConfig": {"defaults": {"unit": unit}, "overrides": []}}
     if decimals is not None:
         p["fieldConfig"]["defaults"]["decimals"] = decimals
-    if thresholds:
-        p["fieldConfig"]["defaults"]["thresholds"] = {"mode": "absolute", "steps": thresholds}
+    # Without explicit thresholds Grafana colours any value above 80 red,
+    # which makes a healthy rate look like an alarm. Plain rates stay blue.
+    steps = thresholds or [{"color": "blue", "value": None}]
+    p["fieldConfig"]["defaults"]["thresholds"] = {"mode": "absolute", "steps": steps}
     panels.append(p)
 
 def ts(title, targets, x, w=12, h=8, unit="short", desc="", stack=False):

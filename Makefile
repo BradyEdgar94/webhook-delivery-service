@@ -25,9 +25,18 @@ help: ## Show this help
 	  sed -i.bak "s|^SECRET_ENCRYPTION_KEY=.*|SECRET_ENCRYPTION_KEY=$$KEY|" .env && rm -f .env.bak
 	@echo "created .env with a fresh SECRET_ENCRYPTION_KEY"
 
+# PREBUILT=1 pulls the image published by CI instead of compiling it locally
+# (the first local build takes ~10 minutes).
+PREBUILT_IMAGE ?= ghcr.io/bradyedgar94/webhook-delivery-service:latest
+
 .PHONY: up
-up: .env ## Build and start the whole stack (Postgres, Redpanda, roles, sink, observability)
+up: .env ## Build and start the whole stack. PREBUILT=1 pulls the published image instead of building
+ifdef PREBUILT
+	docker pull $(PREBUILT_IMAGE)
+	HOOKLANE_IMAGE=$(PREBUILT_IMAGE) $(COMPOSE) up -d --no-build --wait --scale worker=$(WORKERS)
+else
 	$(COMPOSE) up -d --build --wait --scale worker=$(WORKERS)
+endif
 	@$(MAKE) --no-print-directory urls
 
 .PHONY: down
@@ -50,7 +59,7 @@ urls:
 	@echo ""
 
 .PHONY: demo
-demo: up ## Start the stack, create a tenant + 3 endpoints, send 100 events, show a summary
+demo: up ## Start the stack, create a tenant + 3 endpoints, send 100 events, show a summary (PREBUILT=1 to skip the build)
 	./scripts/demo.sh
 
 # ---------------------------------------------------------------- quality ----

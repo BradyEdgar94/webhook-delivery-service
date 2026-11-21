@@ -8,11 +8,14 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Runners are pinned to a specific Ubuntu release rather than `ubuntu-latest`:
+# librdkafka is compiled from C source, and a silent move to a newer compiler
+# should not be able to break the build.
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -22,7 +25,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:18.7-bookworm
@@ -35,7 +38,7 @@ jobs:
           --health-cmd "pg_isready -U hooklane"
           --health-interval 2s --health-timeout 3s --health-retries 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Redpanda needs a custom command line, which GitHub service containers
       # do not support, so it is started as a plain container.
       - name: Start Redpanda

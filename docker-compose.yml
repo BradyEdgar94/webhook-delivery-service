@@ -8,9 +8,10 @@
 name: hooklane
 
 # Settings shared by every Hooklane role. Each role is the same image with a
-# different --role.
+# different --role. HOOKLANE_IMAGE lets `make up PREBUILT=1` run the published
+# image instead of building one locally.
 x-hooklane: &hooklane
-  image: hooklane:local
+  image: ${HOOKLANE_IMAGE:-hooklane:local}
   # Built once by the `migrate` service below; every role reuses that image.
   pull_policy: never
   restart: unless-stopped
@@ -87,7 +88,7 @@ services:
 
   # One-shot: run migrations and create the 64-partition topic, then exit.
   migrate:
-    image: hooklane:local
+    image: ${HOOKLANE_IMAGE:-hooklane:local}
     build: .   # the only service that builds the image
     command: ["migrate"]
     environment: *hooklane-env
@@ -126,7 +127,7 @@ services:
     command: ["--role", "worker"]
 
   sink:
-    image: hooklane:local
+    image: ${HOOKLANE_IMAGE:-hooklane:local}
     pull_policy: never
     entrypoint: ["sink"]
     ports: ["8090:8080"]

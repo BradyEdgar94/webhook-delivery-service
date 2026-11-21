@@ -1,8 +1,26 @@
-# Hooklane
+# webhook-delivery-service
 
-**A self-hosted outbound webhook delivery service, written in Rust.**
+[![CI](https://github.com/BradyEdgar94/webhook-delivery-service/actions/workflows/ci.yml/badge.svg)](https://github.com/BradyEdgar94/webhook-delivery-service/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**A self-hosted outbound webhook delivery service, written in Rust.** Inside the code it is called **Hooklane**: that is the name of the binary, the crate and the metrics, and the name this README uses from here on.
 
 Your application posts an event once. Hooklane saves it, signs it, and delivers it over HTTPS to every customer endpoint that subscribed to it, with retries, a full delivery log, and protection against slow or broken endpoints.
+
+**Measured, on a laptop** (details in [Results](#results)):
+
+| | |
+|---|---|
+| Events lost across every load and chaos test | **0** |
+| Sustained throughput (6-CPU VM shared with the database, broker and load generator) | **about 1,785 events/s** |
+| Delivery latency under steady load, p50 / p99 | **0.15 s / 0.56 s** |
+| Workers killed with `SIGKILL` mid-run, Postgres restarted mid-run | **0 lost** in both |
+| Kubernetes autoscaling on Kafka lag | **1 → 11 → 1 workers**, 77,634 of 77,634 delivered |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/autoscaling-dark.svg">
+  <img alt="Workers scale from 1 to 11 as Kafka consumer lag grows to 21,143 messages, then back to 1 after it drains" src="docs/images/autoscaling-light.svg">
+</picture>
 
 The one promise everything else is built around: **once the API answers `202`, the event is never lost.** It is delivered, or it ends in a visible `failed` or `dead` state that you can inspect and replay.
 
@@ -10,7 +28,7 @@ The one promise everything else is built around: **once the API answers `202`, t
 Rust · Tokio · axum · PostgreSQL · Kafka (Redpanda) · Kubernetes · KEDA · OpenTelemetry
 ```
 
-> **Status:** a portfolio project. The architecture is real and the results are measured, but it has only been run on a laptop and a local Kubernetes cluster, never in production. Every number in this README comes from a test that was actually run; see [Results](#results).
+> **Status:** a portfolio project. The architecture is real and the results are measured, but it has only been run on a laptop and a local Kubernetes cluster, never in production. Every number in this README comes from a test that was actually run.
 
 ---
 
@@ -40,8 +58,9 @@ Rust · Tokio · axum · PostgreSQL · Kafka (Redpanda) · Kubernetes · KEDA ·
 12. [Running it](#running-it)
 13. [Testing](#testing)
 14. [Project layout](#project-layout)
-15. [Limits and non-goals](#limits-and-non-goals)
-16. [FAQ](#faq)
+15. [How this was built](#how-this-was-built)
+16. [Limits and non-goals](#limits-and-non-goals)
+17. [FAQ](#faq)
 
 ---
 
@@ -75,10 +94,12 @@ You need Docker and nothing else.
 
 ```bash
 git clone https://github.com/BradyEdgar94/webhook-delivery-service.git && cd webhook-delivery-service
-make demo
+make demo PREBUILT=1     # pulls the published image: ready in about a minute
 ```
 
-`make demo` builds the image (about 10 minutes the first time, because it compiles the Kafka client library; about a minute after that), starts the whole system, creates three fake customer endpoints (one healthy, one that fails 25% of the time, one that always fails), sends 100 events, and prints what happened:
+Or build the image yourself with plain `make demo`. The first build takes about 10 minutes, because it compiles the Kafka client library from source; later builds take about a minute.
+
+`make demo` starts the whole system, creates three fake customer endpoints (one healthy, one that fails 25% of the time, one that always fails), sends 100 events, and prints what happened:
 
 ```
      endpoint     | succeeded | retrying | failed | dead | pct_delivered | max_attempts | next_retry_in
@@ -808,6 +829,44 @@ The code is written to be read by someone new to Rust. Every module starts with 
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, traces, logs, alerts, and sending them to Datadog |
 | [docs/RESULTS.md](docs/RESULTS.md) | Load and chaos test results, and what broke |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | The build log |
+
+---
+
+## How this was built
+
+This project was built from a written specification by an AI coding agent (Claude Code), working in phases. The interesting part is not that an agent wrote the code. It is how the work was structured so the result could be trusted.
+
+**1. A specification that states guarantees, not just features.** The spec lists six things that must always hold (no lost events, at-least-once delivery, no internal duplicates, isolation between endpoints, tenant isolation, no access to private networks) and says how each must be enforced. It also says what not to build.
+
+**2. Phases with gates.** The work was split into seven phases, and a phase could not start until the previous one passed its gate: a list of checks that had to be run and seen to pass.
+
+| Phase | Gate (what had to be observed, not assumed) |
+|---|---|
+| 0. Scaffold | The stack starts from nothing with one command; health checks return 200 |
+| 1. End to end (Postgres queue) | Integration tests pass; the demo shows 100% delivery to the healthy endpoint |
+| 2. Kafka | Every test passes in both queue modes, including "relay publishes twice" and "worker killed mid-request"; a 10k run loses nothing |
+| 3. Protection and security | Breaker, SSRF and rotation tests pass; a slow endpoint demonstrably does not delay a healthy one |
+| 4. Scale and observe | Live dashboard, one trace from API to outbound call, workers scale on lag |
+| 5. Prove it | Load and chaos tests run; every report shows zero lost |
+| 6. Finish | A fresh clone works with `make demo` |
+
+**3. Rules that keep the results honest.** The spec forbade inventing numbers, forbade weakening a test or a guarantee to make a gate pass, and required anything that could not be run to be reported as not run. That is why this README says which tests were not run at full size instead of leaving them out.
+
+**4. Verification that does not trust the system under test.**
+
+- Signatures are checked with the **official Standard Webhooks libraries** (Rust and npm), not with Hooklane's own code.
+- Load runs are checked by a **separate program**, [`loadcheck`](crates/loadcheck), which compares what Postgres says should have been delivered with what the fake customer actually received, id by id.
+- Integration tests use a **real Postgres and a real Kafka broker**, never mocks, and each test gets its own database and topic.
+- Crash tests **really kill things**: `SIGKILL` on worker containers, a restart of Postgres, a worker's runtime dropped mid-request.
+
+**5. Running it found real problems.** None of these would have shown up by reading the code:
+
+- The API's 20-connection database pool capped ingest and rejected 4,221 requests in the first full load run.
+- Two worker replicas reported metrics with identical labels, so their numbers were silently merged.
+- In Kubernetes, the autoscaler could not resolve the broker's address from its own namespace, so it never scaled. Every event was still delivered, just by one worker.
+- The test machine's disk filled up mid-run and corrupted the Docker VM's filesystem.
+
+Each is written up, with the fix, in [docs/RESULTS.md](docs/RESULTS.md). The phase-by-phase log, including what each gate showed, is [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ---
 
