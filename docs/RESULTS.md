@@ -24,7 +24,8 @@ for first-attempt deliveries to healthy endpoints.
 | Worker crash (3 × SIGKILL) | 101,132 | **0** | **17** | 0.026 / 8.834 / 10.541 s | met (100%) | 1,582 / 1,405 | [chaos-worker](results/2026-11-20-1947-chaos-worker-kafka-100000.md) |
 | Failing endpoints (30%: 5xx / timeout / 429) | 100,555 | **0** | **0** | 0.047 / 0.339 / 0.632 s (healthy) | met (100%) | 1,604 / 1,396 | [chaos-endpoints](results/2026-11-20-1951-chaos-endpoints-kafka-100000.md) |
 | Database restart | 98,481 (+59 rejected with 503) | **0** | **0** | 0.037 / 0.277 / 0.412 s | met (100%) | 2,169 / 1,368 | [chaos-db](results/2026-11-20-1953-chaos-db-kafka-100000.md) |
-| Postgres vs Kafka | see below (10k size) | **0 / 0** | **0 / 0** | see below | met | see below | [pg](results/2026-11-20-steady-postgres-10000.md), [kafka](results/2026-11-20-steady-kafka-10000.md) |
+| Postgres vs Kafka (100k each) | 100,744 / 100,602 | **0 / 0** | **0 / 0** | pg 0.002 / 0.099 / 0.206 s; kafka 0.018 / 0.068 / 0.255 s | met / met | sustained 1,399 / 1,397 | [pg](results/2026-11-21-1327-steady-postgres-100000.md), [kafka](results/2026-11-21-1329-steady-kafka-100000.md) |
+| **1,000,000 events** (target 2000/s, 1000 endpoints) | 943,815 | **0** | **0** | 0.158 / 8.133 / 12.654 s | met (100%) | 2,534 / 1,753 | [1M](results/2026-11-21-1229-steady-kafka-1000000.md) |
 
 Additional runs:
 
@@ -32,7 +33,7 @@ Additional runs:
 |---|---|---|
 | Scale workers mid-run (`docker compose --scale`, 4 → 8 → 2), 40k events | 40,297 accepted, **0 lost, 0 duplicates**, p99 1.49 s (rebalances), SLO met | [scale](results/2026-11-20-scale-kafka-40000.md) |
 | Kubernetes (kind) autoscaling, 3000/s burst | KEDA scaled workers **1 → 3 → 7 → 11** as lag reached 21k, back to **1** after it drained; 77,634 / 77,634 delivered | [k8s](results/2026-11-20-k8s-autoscaling.md) |
-| 10k smoke, each queue mode | 0 lost, 0 duplicates in both | (the compare row) |
+| 10k smoke, each queue mode (1,000/s, 50 endpoints) | 0 lost, 0 duplicates in both; p99 75 ms (Postgres), 46 ms (Kafka) | [pg](results/2026-11-20-steady-postgres-10000.md), [kafka](results/2026-11-20-steady-kafka-10000.md) |
 
 **The sustained ceiling on this machine is ~1,750–1,800 events/s.** Each
 event costs one ingest transaction plus a claim and a result transaction in
@@ -84,33 +85,59 @@ the relay, scheduler and workers retried their connections with backoff, and
 everything resumed. **Zero lost** among the 98,481 accepted events.
 
 ### Postgres queue mode vs Kafka mode
-Same settings: 10k events at 1,000/s, 50 endpoints, 4 workers, fresh volumes.
+Same settings, run back to back on fresh volumes: 100k events at 1,500/s, 100
+endpoints, 4 workers.
 
 | Mode | Accepted | Lost | Dup | Delivery p50 / p95 / p99 | Sustained events/s | Ingest p95 |
 |---|---:|---:|---:|---|---:|---:|
-| Postgres (`QUEUE_MODE=postgres`) | 9,748 | 0 | 0 | 0.002 / 0.047 / 0.075 s | 813 | 3.0 ms |
-| Kafka (`QUEUE_MODE=kafka`) | 9,746 | 0 | 0 | 0.014 / 0.023 / 0.046 s | 813 | 4.7 ms |
+| Postgres (`QUEUE_MODE=postgres`) | 100,744 | 0 | 0 | 0.002 / 0.099 / 0.206 s | 1,399 | 61.8 ms |
+| Kafka (`QUEUE_MODE=kafka`) | 100,602 | 0 | 0 | 0.018 / 0.068 / 0.255 s | 1,397 | 24.6 ms |
 
-At this rate neither mode is saturated (both deliver exactly what is
-offered), so the difference is the *shape* of latency:
+At 1,500/s neither mode is saturated: both deliver what is offered and both
+lose nothing. **On one small machine the two are close, and that is the honest
+result.** The differences are in the shape:
 
-- **Postgres mode** has the lowest median (2 ms): a worker that is polling
-  claims a new row almost immediately. Its tail is wider (p99 75 ms) because
-  workers poll in batches and sleep 100 ms when the table looks empty. Its
-  bottleneck at scale is the database itself: every poll is an
-  `UPDATE ... FOR UPDATE SKIP LOCKED` on the hottest table, so more workers
-  add more write contention, and per-endpoint protections are only per-worker
-  (shown in the demo: the failing endpoint got 5 attempts *per worker* before
-  the breakers opened).
-- **Kafka mode** adds a hop (outbox → relay → Kafka → worker), so the median
-  is higher (14 ms), but it is tighter (p99 46 ms) and the database does less
-  work per delivery for the queue itself. Its bottleneck is the outbox: the
-  relay's writes and the ingest transaction's extra insert, and ultimately the
+- **Postgres mode** has the lowest median (2 ms): a polling worker claims a
+  new row almost immediately, with no relay hop. But the API and the workers
+  now fight over the same table, which shows up as slower ingest (p95 61.8 ms
+  against 24.6 ms) and a wider p95. Its bottleneck at scale is the database:
+  every poll is an `UPDATE ... FOR UPDATE SKIP LOCKED` on the hottest table,
+  so more workers add more write contention. And per-endpoint protections are
+  only per-worker (shown in the demo: the failing endpoint got 5 attempts *per
+  worker* before the breakers opened).
+- **Kafka mode** adds a hop (outbox → relay → Kafka → worker), so its median
+  is higher (18 ms), but ingest is faster and p95 is tighter, because handing
+  out work no longer competes with accepting it. Its bottleneck is the outbox
+  (the relay's writes plus the extra insert at ingest) and, ultimately, the
   64-partition ceiling on worker parallelism.
 
-**Not run: the comparison at the default 100k size.** The host disk had
-3.5 GB free by then, and `loadtest/run.sh` refuses to start a test below 4 GB
-(see "what broke" below). Run `make load-compare` with more free space to get it.
+What this test cannot show is the reason Kafka was chosen: beyond one
+machine, Kafka lets workers scale out without adding load to Postgres, and it
+gives each endpoint a single owner. A laptop is too small to reach the point
+where Postgres-as-a-queue falls over.
+
+An earlier 10k run of each mode (1,000/s, 50 endpoints) showed the same
+pattern: p99 75 ms for Postgres mode, 46 ms for Kafka mode, zero lost in both.
+
+### One million events
+`make load-full`: target 2,000/s, 1,000 endpoints, Kafka mode, 4 workers.
+**943,815 events accepted, 0 rejected, 0 lost, 0 duplicates**, sustained
+1,753 events/s for about nine minutes, SLO met (100% within 60 s).
+
+The latency tail is long (p50 0.16 s, p95 8.1 s, p99 12.7 s, max 14.5 s) and
+ingest p95 was 2.0 s. That is what running *above* capacity looks like: the
+target rate is higher than the ~1,750/s this machine sustains, so requests
+queue in the API and deliveries queue behind them for the whole run. Nothing
+is dropped; it is delayed. The sustained rate matching the 100k run (1,785/s)
+is the useful finding: throughput did not degrade over ten times the data.
+
+### A note on conditions
+The runs dated 2026-11-21 (the 1M run and the Postgres-vs-Kafka pair) were
+made **on battery with macOS Low Power Mode on**, which lowers CPU speed. The
+2026-11-20 runs were not recorded either way. Compare runs within a day, not
+across days. Two earlier attempts at the comparison were discarded and are not
+published: one was disturbed by dashboard screenshots being taken during the
+run, and one ran while the laptop was asleep with the lid closed.
 
 ## What broke and how I fixed it
 
@@ -180,5 +207,4 @@ make k8s-up && make k8s-demo && make k8s-down
 
 Each writes `docs/results/<date-time>-<test>-<mode>-<size>.md`. Sizes and rates
 are parameters: `make load LOAD_EVENTS=1000000 LOAD_ENDPOINTS=1000` (or
-`make load-full`) for 1M events. **The 1M run was not performed on this
-machine** (disk space); expect roughly 10 minutes at the measured ceiling.
+`make load-full`) for 1M events (about ten minutes on this machine).

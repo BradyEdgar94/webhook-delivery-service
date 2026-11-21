@@ -174,6 +174,22 @@ Gate evidence:
   `terraform fmt -check` clean. **Never applied.** (Provider download deleted
   afterwards to save disk.)
 
+### Follow-up after publishing (2026-11-21)
+- **Deferred tests now run** (disk space freed): `make load-full` accepted
+  943,815 events with 0 lost, 0 duplicates, sustained 1,753 events/s; the
+  Postgres-vs-Kafka pair at 100k: 100,744 / 100,602 accepted, 0 lost in both.
+  Run on battery with Low Power Mode on. Two disturbed comparison attempts
+  (dashboard screenshots during the run; laptop asleep) were discarded.
+- **CI fixed.** The first runs on GitHub failed compiling `rdkafka-sys`:
+  `curl/curl.h: No such file or directory`. macOS and the rust Docker image
+  ship the libcurl headers; GitHub's Ubuntu runners do not. CI now installs
+  `libcurl4-openssl-dev`. To find this without access to the logs, CI prints
+  the first error of a failed run as an annotation (`.github/first-error.sh`).
+  Lint and all 34 integration tests now pass on GitHub.
+- **Prebuilt image** published to GHCR for amd64 and arm64 by
+  `.github/workflows/image.yml`; `make demo PREBUILT=1` uses it.
+- Added `docs/SPEC.md`, an autoscaling chart and a dashboard screenshot.
+
 ## Requirements checklist (spec section 23)
 
 **Architecture**
@@ -226,7 +242,7 @@ Gate evidence:
 **Proof**
 - [x] Unit and integration tests in section 19 pass, in both queue modes where applicable
 - [x] Sink records every received id; `loadcheck` reports lost, duplicates and latency percentiles
-- [x] Six load and chaos tests run, with real reports in `docs/results/` — five at the default ~100k size; Postgres-vs-Kafka compare at 10k (disk space, see Phase 5)
+- [x] Six load and chaos tests run, with real reports in `docs/results/` — all six at the default ~100k size (the compare pair was rerun at 100k on 2026-11-21), plus a 1M run
 - [x] CI workflow
 
 **Documentation**
