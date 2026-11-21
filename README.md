@@ -828,13 +828,14 @@ The code is written to be read by someone new to Rust. Every module starts with 
 | [docs/INTEGRATION.md](docs/INTEGRATION.md) | How an application sends events and how receivers verify them |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Metrics, traces, logs, alerts, and sending them to Datadog |
 | [docs/RESULTS.md](docs/RESULTS.md) | Load and chaos test results, and what broke |
-| [docs/PROGRESS.md](docs/PROGRESS.md) | The build log |
+| [docs/SPEC.md](docs/SPEC.md) | The specification the project was built from, with its phases and gates |
+| [docs/PROGRESS.md](docs/PROGRESS.md) | The build log: what each gate actually showed |
 
 ---
 
 ## How this was built
 
-This project was built from a written specification by an AI coding agent (Claude Code), working in phases. The interesting part is not that an agent wrote the code. It is how the work was structured so the result could be trusted.
+This project was built from a written specification ([docs/SPEC.md](docs/SPEC.md)) by an AI coding agent (Claude Code), working in phases. The interesting part is not that an agent wrote the code. It is how the work was structured so the result could be trusted.
 
 **1. A specification that states guarantees, not just features.** The spec lists six things that must always hold (no lost events, at-least-once delivery, no internal duplicates, isolation between endpoints, tenant isolation, no access to private networks) and says how each must be enforced. It also says what not to build.
 
