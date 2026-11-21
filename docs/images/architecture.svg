@@ -1,0 +1,259 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" width="1000" height="800" role="img" aria-label="Hooklane architecture: the sender posts an event to the api, which saves it to Postgres in one transaction; the relay publishes committed outbox rows to Kafka; workers consume from Kafka, record each attempt in Postgres and send signed HTTPS POSTs to customer endpoints; the scheduler re-queues due retries through Postgres.">
+  <defs>
+    <!-- Background -->
+    <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="11" cy="11" r="1" fill="#ffffff" fill-opacity="0.09"/>
+    </pattern>
+    <radialGradient id="dotFade" cx="0.5" cy="0.55" r="0.65">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="dotMask"><rect width="1000" height="800" fill="url(#dotFade)"/></mask>
+    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#1fbfa5" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#1fbfa5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2a6cff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#2a6cff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Cards -->
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1f25"/>
+      <stop offset="1" stop-color="#121317"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#2fc4ab" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e4e6e3"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#25b39d"/>
+      <stop offset="0.5" stop-color="#0d7064"/>
+      <stop offset="1" stop-color="#06302c"/>
+    </linearGradient>
+    <radialGradient id="tealSheen" cx="0.15" cy="0.15" r="0.7">
+      <stop offset="0" stop-color="#d9fff6" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#d9fff6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tealEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9ff5e3" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#2fc4ab" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Effects -->
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="180%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+    <filter id="tealGlow" x="-40%" y="-60%" width="180%" height="220%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feColorMatrix in="b" type="matrix" values="0 0 0 0 0.12  0 0 0 0 0.85  0 0 0 0 0.7  0 0 0 0.55 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="lineGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="packetGlow" x="-200%" y="-200%" width="500%" height="500%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#4fe0c6"/>
+    </marker>
+    <marker id="arrowGrey" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#5f6069"/>
+    </marker>
+
+    <!-- Event path segments (used for travelling packets) -->
+    <path id="p1" d="M300,252 L381,252"/>
+    <path id="p2" d="M615,252 L696,252"/>
+    <path id="p3" d="M860,308 L860,416"/>
+    <path id="p4" d="M700,472 L619,472"/>
+    <path id="p5" d="M385,472 L304,472"/>
+    <path id="p6" d="M130,528 L130,626"/>
+  </defs>
+
+  <style>
+    text { font-family: -apple-system, 'SF Pro Display', 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+    .name { font-size: 21px; font-weight: 600; letter-spacing: -0.3px; }
+    .desc { font-size: 13px; }
+    .chip { font-size: 11.5px; font-weight: 600; letter-spacing: 0.3px; }
+    .label { font-size: 11px; fill: #7d7e88; letter-spacing: 0.4px; }
+    .main { stroke: #2fc4ab; stroke-width: 1.6; fill: none; }
+    .back { stroke: #4a4b53; stroke-width: 1.4; fill: none; stroke-dasharray: 5 6; }
+    .ico { fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <!-- ============ Background ============ -->
+  <rect width="1000" height="800" fill="#0a0b0d"/>
+  <ellipse cx="830" cy="250" rx="360" ry="300" fill="url(#glowA)"/>
+  <ellipse cx="150" cy="700" rx="380" ry="260" fill="url(#glowB)"/>
+  <rect width="1000" height="800" fill="url(#dots)" mask="url(#dotMask)"/>
+
+  <!-- ============ Header ============ -->
+  <text x="70" y="82" class="mono" font-size="12" fill="#2fc4ab" letter-spacing="2.5">SYSTEM ARCHITECTURE</text>
+  <text x="70" y="124" fill="#ffffff" font-size="38" font-weight="600" letter-spacing="-1">How an event moves</text>
+  <text x="70" y="154" fill="#8b8c95" font-size="14">Postgres is the source of truth. Kafka only hands work to the workers.</text>
+
+  <rect x="750" y="96" width="180" height="34" rx="17" fill="#15161a" stroke="#2a2b31"/>
+  <circle cx="770" cy="113" r="4" fill="#2fc4ab"/>
+  <circle cx="770" cy="113" r="4" fill="none" stroke="#2fc4ab" stroke-width="1.5">
+    <animate attributeName="r" values="4;10" dur="1.8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.9;0" dur="1.8s" repeatCount="indefinite"/>
+  </circle>
+  <text x="784" y="117.5" class="mono" font-size="12" fill="#d6d7dc" textLength="130" lengthAdjust="spacingAndGlyphs">1 binary · 4 roles</text>
+
+  <!-- ============ Connectors ============ -->
+  <!-- write-backs into Postgres -->
+  <path class="back" d="M240,420 L240,362 L790,362 L790,311" marker-end="url(#arrowGrey)">
+    <animate attributeName="stroke-dashoffset" from="22" to="0" dur="1.2s" repeatCount="indefinite"/>
+  </path>
+  <text class="label mono" x="515" y="352" text-anchor="middle">CLAIM · LOG EVERY ATTEMPT · SET NEXT RETRY</text>
+  <path class="back" d="M560,630 L560,594 L690,594 L690,330 L735,330 L735,311" marker-end="url(#arrowGrey)">
+    <animate attributeName="stroke-dashoffset" from="22" to="0" dur="1.2s" repeatCount="indefinite"/>
+  </path>
+  <text class="label mono" x="700" y="584">RE-QUEUE DUE RETRIES</text>
+
+  <!-- event path -->
+  <g filter="url(#lineGlow)">
+    <line class="main" x1="300" y1="252" x2="381" y2="252" marker-end="url(#arrowTeal)"/>
+    <line class="main" x1="615" y1="252" x2="696" y2="252" marker-end="url(#arrowTeal)"/>
+    <line class="main" x1="860" y1="308" x2="860" y2="412" marker-end="url(#arrowTeal)"/>
+    <line class="main" x1="700" y1="472" x2="619" y2="472" marker-end="url(#arrowTeal)"/>
+    <line class="main" x1="385" y1="472" x2="304" y2="472" marker-end="url(#arrowTeal)"/>
+    <line class="main" x1="130" y1="528" x2="130" y2="622" marker-end="url(#arrowTeal)"/>
+  </g>
+  <text class="label mono" x="657" y="240" text-anchor="middle">1 TXN</text>
+  <text class="label mono" x="872" y="364">OUTBOX ROWS</text>
+  <text class="label mono" x="652" y="460" text-anchor="middle">PUBLISH</text>
+  <text class="label mono" x="344" y="460" text-anchor="middle">CONSUME</text>
+  <text class="label mono" x="142" y="579">SIGNED POST</text>
+
+  <!-- travelling packets -->
+  <g fill="#b6fff0" filter="url(#packetGlow)">
+    <circle r="3.2" opacity="0"><animateMotion dur="2.4s" begin="0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.4;1" calcMode="linear"><mpath href="#p1"/></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.41;1" dur="2.4s" repeatCount="indefinite"/></circle>
+    <circle r="3.2" opacity="0"><animateMotion dur="2.4s" begin="0.4s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.4;1" calcMode="linear"><mpath href="#p2"/></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.41;1" dur="2.4s" begin="0.4s" repeatCount="indefinite"/></circle>
+    <circle r="3.2" opacity="0"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.4;1" calcMode="linear"><mpath href="#p3"/></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.41;1" dur="2.4s" begin="0.8s" repeatCount="indefinite"/></circle>
+    <circle r="3.2" opacity="0"><animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.4;1" calcMode="linear"><mpath href="#p4"/></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.41;1" dur="2.4s" begin="1.2s" repeatCount="indefinite"/></circle>
+    <circle r="3.2" opacity="0"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.4;1" calcMode="linear"><mpath href="#p5"/></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.41;1" dur="2.4s" begin="1.6s" repeatCount="indefinite"/></circle>
+    <circle r="3.2" opacity="0"><animateMotion dur="2.4s" begin="2.0s" repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.4;1" calcMode="linear"><mpath href="#p6"/></animateMotion><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.4;0.41;1" dur="2.4s" begin="2.0s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- ============ Cards ============ -->
+  <!-- card shells -->
+  <g filter="url(#shadow)">
+    <!-- light: outside the service / delivery -->
+    <rect x="70" y="200" width="230" height="108" rx="22" fill="url(#paper)"/>
+    <rect x="70" y="420" width="230" height="108" rx="22" fill="url(#paper)"/>
+    <rect x="70" y="630" width="230" height="108" rx="22" fill="url(#paper)"/>
+    <!-- glass: internal roles -->
+    <rect x="385" y="200" width="230" height="108" rx="22" fill="url(#glass)" stroke="url(#edge)"/>
+    <rect x="385" y="420" width="230" height="108" rx="22" fill="url(#glass)" stroke="url(#edge)"/>
+    <rect x="700" y="420" width="230" height="108" rx="22" fill="url(#glass)" stroke="url(#edge)"/>
+    <rect x="385" y="630" width="230" height="108" rx="22" fill="url(#glass)" stroke="url(#edge)"/>
+  </g>
+  <!-- Postgres: source of truth -->
+  <rect x="700" y="200" width="230" height="108" rx="22" fill="url(#teal)" filter="url(#tealGlow)"/>
+  <rect x="700" y="200" width="230" height="108" rx="22" fill="url(#tealSheen)" stroke="url(#tealEdge)" stroke-width="1.2"/>
+
+  <!-- top highlights on glass cards -->
+  <g stroke="#ffffff" stroke-opacity="0.12" stroke-width="1">
+    <line x1="410" y1="200.5" x2="590" y2="200.5"/>
+    <line x1="410" y1="420.5" x2="590" y2="420.5"/>
+    <line x1="725" y1="420.5" x2="905" y2="420.5"/>
+    <line x1="410" y1="630.5" x2="590" y2="630.5"/>
+  </g>
+
+  <!-- icon tiles -->
+  <g>
+    <rect x="88" y="218" width="34" height="34" rx="10" fill="#111216"/>
+    <rect x="88" y="438" width="34" height="34" rx="10" fill="#111216"/>
+    <rect x="88" y="648" width="34" height="34" rx="10" fill="#111216"/>
+    <rect x="403" y="218" width="34" height="34" rx="10" fill="#26272e" stroke="#34353d"/>
+    <rect x="403" y="438" width="34" height="34" rx="10" fill="#26272e" stroke="#34353d"/>
+    <rect x="718" y="438" width="34" height="34" rx="10" fill="#26272e" stroke="#34353d"/>
+    <rect x="403" y="648" width="34" height="34" rx="10" fill="#26272e" stroke="#34353d"/>
+    <rect x="718" y="218" width="34" height="34" rx="10" fill="#000000" fill-opacity="0.22" stroke="#ffffff" stroke-opacity="0.18"/>
+  </g>
+
+  <!-- icons (24px grid, centred in each tile) -->
+  <g class="ico" stroke="#2fc4ab">
+    <!-- Sender: app window -->
+    <g transform="translate(93,223)"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M4 9h16"/><circle cx="7" cy="7" r="0.4"/><circle cx="9" cy="7" r="0.4"/></g>
+    <!-- workers: chip -->
+    <g transform="translate(93,443)"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 4v3M14 4v3M10 17v3M14 17v3M4 10h3M4 14h3M17 10h3M17 14h3"/></g>
+    <!-- endpoints: globe -->
+    <g transform="translate(93,653)"><circle cx="12" cy="12" r="8"/><ellipse cx="12" cy="12" rx="3.5" ry="8"/><path d="M4 12h16"/></g>
+    <!-- api: brackets -->
+    <g transform="translate(408,223)"><path d="M9 8l-4 4 4 4M15 8l4 4-4 4M13 6l-2 12"/></g>
+    <!-- Kafka: partitions -->
+    <g transform="translate(408,443)"><path d="M5 7h14M5 12h10M5 17h12"/><circle cx="19" cy="12" r="1.2"/></g>
+    <!-- relay: send -->
+    <g transform="translate(723,443)"><path d="M4 12l15-7-5 14-3-6-7-1z"/><path d="M11 13l8-8"/></g>
+    <!-- scheduler: clock -->
+    <g transform="translate(408,653)"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></g>
+  </g>
+  <!-- Postgres: database -->
+  <g class="ico" stroke="#ffffff" transform="translate(723,223)"><ellipse cx="12" cy="6.5" rx="7" ry="2.5"/><path d="M5 6.5v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-11"/><path d="M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></g>
+
+  <!-- chips -->
+  <g class="mono">
+    <rect x="232" y="222" width="50" height="24" rx="12" fill="#111216"/>
+    <text class="chip" x="257" y="238" fill="#ffffff" text-anchor="middle">POST</text>
+    <rect x="232" y="442" width="50" height="24" rx="12" fill="#111216"/>
+    <text class="chip" x="257" y="458" fill="#ffffff" text-anchor="middle">1–64</text>
+    <rect x="232" y="652" width="50" height="24" rx="12" fill="#111216"/>
+    <text class="chip" x="257" y="668" fill="#ffffff" text-anchor="middle">HMAC</text>
+
+    <rect x="553" y="222" width="44" height="24" rx="12" fill="#ffffff"/>
+    <text class="chip" x="575" y="238" fill="#111113" text-anchor="middle">202</text>
+    <rect x="487" y="442" width="110" height="24" rx="12" fill="#ffffff"/>
+    <text class="chip" x="542" y="458" fill="#111113" text-anchor="middle">64 PARTITIONS</text>
+    <rect x="842" y="442" width="70" height="24" rx="12" fill="#ffffff"/>
+    <text class="chip" x="877" y="458" fill="#111113" text-anchor="middle">OUTBOX</text>
+    <rect x="499" y="652" width="98" height="24" rx="12" fill="#ffffff"/>
+    <text class="chip" x="548" y="668" fill="#111113" text-anchor="middle">8 ATTEMPTS</text>
+
+    <rect x="842" y="222" width="70" height="24" rx="12" fill="#ffffff"/>
+    <text class="chip" x="877" y="238" fill="#0b3d37" text-anchor="middle">COMMIT</text>
+  </g>
+
+  <!-- names and descriptions -->
+  <text class="name" x="88" y="272" fill="#0d0e11">Sender</text>
+  <text class="desc" x="88" y="294" fill="#64656c">your application</text>
+  <text class="name" x="403" y="272" fill="#ffffff">api</text>
+  <text class="desc" x="403" y="294" fill="#9a9ba4">validate, save, answer</text>
+  <text class="name" x="718" y="272" fill="#ffffff">Postgres</text>
+  <text class="desc" x="718" y="294" fill="#d2f2eb">events, deliveries, attempts</text>
+
+  <text class="name" x="88" y="492" fill="#0d0e11">workers</text>
+  <text class="desc" x="88" y="514" fill="#64656c">sign, POST, record</text>
+  <text class="name" x="403" y="492" fill="#ffffff">Kafka</text>
+  <text class="desc" x="403" y="514" fill="#9a9ba4">keyed by endpoint</text>
+  <text class="name" x="718" y="492" fill="#ffffff">relay</text>
+  <text class="desc" x="718" y="514" fill="#9a9ba4">publishes committed rows</text>
+
+  <text class="name" x="88" y="702" fill="#0d0e11">Endpoints</text>
+  <text class="desc" x="88" y="724" fill="#64656c">your customers' servers</text>
+  <text class="name" x="403" y="702" fill="#ffffff">scheduler</text>
+  <text class="desc" x="403" y="724" fill="#9a9ba4">retries, recovery, disable</text>
+
+  <!-- ============ Promise marker ============ -->
+  <g transform="translate(722 686)">
+    <rect x="-22" y="-22" width="44" height="44" rx="8" fill="none" stroke="#2fc4ab" stroke-width="1.2" transform="rotate(45)">
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="2.4s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="-14" y="-14" width="28" height="28" rx="6" fill="#0f2c28" stroke="#4fe0c6" stroke-width="1.4" transform="rotate(45)" filter="url(#lineGlow)"/>
+    <circle r="3" fill="#b6fff0"/>
+  </g>
+  <text x="756" y="681" fill="#ffffff" font-size="18" font-weight="600" letter-spacing="-0.2">202 after COMMIT</text>
+  <text x="756" y="701" class="mono" font-size="11" fill="#7d7e88" letter-spacing="0.3">NO ACCEPTED EVENT IS LOST</text>
+</svg>

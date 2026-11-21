@@ -7,6 +7,8 @@
 
 Your application posts an event once. Hooklane saves it, signs it, and delivers it over HTTPS to every customer endpoint that subscribed to it, with retries, a full delivery log, and protection against slow or broken endpoints.
 
+<img alt="Hooklane architecture: the sender posts an event to the api, which saves it to Postgres in one transaction. The relay publishes committed outbox rows to Kafka. Workers consume from Kafka, record every attempt in Postgres and send signed POSTs to customer endpoints. The scheduler re-queues due retries." src="docs/images/architecture.svg" width="100%">
+
 **Measured, on a laptop** (details in [Results](#results)):
 
 | | |
@@ -18,10 +20,7 @@ Your application posts an event once. Hooklane saves it, signs it, and delivers 
 | Workers killed with `SIGKILL` mid-run, Postgres restarted mid-run | **0 lost** in both |
 | Kubernetes autoscaling on Kafka lag | **1 → 11 → 1 workers**, 77,634 of 77,634 delivered |
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/autoscaling-dark.svg">
-  <img alt="Workers scale from 1 to 11 as Kafka consumer lag grows to 21,143 messages, then back to 1 after it drains" src="docs/images/autoscaling-light.svg">
-</picture>
+<img alt="Workers scale from 1 to 11 as Kafka consumer lag grows to 21,143 messages, then back to 1 after it drains. All 77,634 events delivered." src="docs/images/autoscaling.svg" width="820">
 
 The one promise everything else is built around: **once the API answers `202`, the event is never lost.** It is delivered, or it ends in a visible `failed` or `dead` state that you can inspect and replay.
 
