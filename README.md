@@ -771,7 +771,7 @@ make test    # unit tests, then integration tests (starts Postgres and Kafka for
 make lint    # cargo fmt --check and clippy with warnings as errors
 ```
 
-Native development needs Rust and cmake: `brew install rustup cmake && rustup default stable`.
+Native development needs Rust and cmake: `brew install rustup cmake && rustup default stable`. On Linux, also install the libcurl headers the Kafka client's C build expects: `sudo apt-get install cmake libcurl4-openssl-dev`.
 
 - **60 unit tests:** retry schedule and jitter bounds, the classification table, `Retry-After` parsing, the token bucket, every circuit-breaker transition, signing (cross-checked with the official library), every blocked IP range, offset tracking, cursor encoding, secret encryption.
 - **34 integration tests** against a real Postgres and a real Kafka broker. Each test gets its own database and its own topic. Most run in **both** queue modes.

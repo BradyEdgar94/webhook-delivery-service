@@ -19,7 +19,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - run: sudo apt-get update && sudo apt-get install -y cmake
+      # librdkafka is compiled from C source: it needs cmake and the libcurl
+      # headers (present on macOS and in the rust Docker image, not on runners).
+      - run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
       - name: Clippy
@@ -58,7 +60,7 @@ jobs:
             sleep 2
           done
       - uses: dtolnay/rust-toolchain@stable
-      - run: sudo apt-get update && sudo apt-get install -y cmake
+      - run: sudo apt-get update && sudo apt-get install -y cmake libcurl4-openssl-dev
       - uses: Swatinem/rust-cache@v2
       - name: Unit tests
         run: |
