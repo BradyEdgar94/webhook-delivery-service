@@ -13,6 +13,18 @@ if [ -n "$line" ]; then
 else
   body=$(tail -45 "$clean")
 fi
-# Annotation messages are single-line: %0A is how a newline is written.
-encoded=$(printf '%s' "$body" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-echo "::error title=First error::$encoded"
+annotate() { # title, text. Annotation messages are single-line: %0A is a newline.
+  local encoded
+  encoded=$(printf '%s' "$2" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+  echo "::error title=$1::$encoded"
+}
+annotate "First error" "$body"
+
+# A failed build script (C libraries such as librdkafka) prints pages of
+# configure output first; the real cause is at the end of its stderr.
+if grep -q -- '--- stderr' "$clean"; then
+  start=$(grep -n -- '--- stderr' "$clean" | head -1 | cut -d: -f1)
+  annotate "Build script stderr (start)" "$(sed -n "${start},$((start + 25))p" "$clean")"
+  annotate "Build script stderr (errors)" "$(sed -n "${start},\$p" "$clean" | grep -n -i -E 'error|fatal|undefined|panicked|cannot find|No such' | head -30)"
+  annotate "End of log" "$(tail -40 "$clean")"
+fi
