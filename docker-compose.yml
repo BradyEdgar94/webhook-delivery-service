@@ -33,6 +33,10 @@ x-hooklane: &hooklane
       condition: service_completed_successfully
   # Kubernetes-like stop behaviour: SIGTERM, then up to 30 s to drain.
   stop_grace_period: 30s
+  # Default container limit is 1024 open files; under load the API holds one
+  # socket per client connection (found in the first 100k load test).
+  ulimits:
+    nofile: {soft: 65536, hard: 65536}
 
 services:
   postgres:
@@ -97,6 +101,11 @@ services:
   api:
     <<: *hooklane
     command: ["--role", "api"]
+    environment:
+      <<: *hooklane-env
+      # Every ingest is one durable Postgres transaction, so the pool size caps
+      # ingest throughput (20 was the bottleneck in the first load test).
+      DATABASE_MAX_CONNECTIONS: ${API_DATABASE_MAX_CONNECTIONS:-64}
     ports: ["8080:8080"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]

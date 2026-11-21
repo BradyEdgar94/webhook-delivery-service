@@ -159,7 +159,7 @@ run_one() { # $1 = test name, $2 = queue mode
   source "$OUT_DIR/summary.env"
   echo "    k6: accepted=$ACCEPTED rejected=$REJECTED ingest p95=$INGEST_P95"
   settings="k6 ramping-arrival-rate, target $RATE/s ($profile), $ENDPOINTS endpoints, ingest latency p50/p95/p99 $INGEST_P50/$INGEST_P95/$INGEST_P99, rejected $REJECTED"
-  REPORT_FILE="$RESULTS/$(date +%Y-%m-%d)-$test-$mode-$EVENTS.md"
+  REPORT_FILE="$RESULTS/$(date +%Y-%m-%d-%H%M)-$test-$mode-$EVENTS.md"
   docker compose run --rm --no-deps -T --entrypoint loadcheck api \
     --database-url postgres://hooklane:hooklane@postgres:5432/hooklane --sink-url http://sink:8080 \
     --tenant-id "$tenant" --accepted "$ACCEPTED" --test "$test" --queue-mode "$mode" --workers "$WORKERS" \

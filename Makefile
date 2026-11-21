@@ -6,7 +6,9 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 LOAD_EVENTS ?= 100000
 LOAD_ENDPOINTS ?= 100
-LOAD_RATE ?= 2000
+LOAD_RATE ?= 2000      # steady target; ~1750/s is this laptop's measured ceiling
+SPIKE_RATE ?= 200      # spike base rate; the spike is 10x this
+CHAOS_RATE ?= 1500     # chaos tests run below the ceiling
 WORKERS ?= 2
 
 .DEFAULT_GOAL := help
@@ -87,19 +89,19 @@ load-full: ## Steady load test at 1M events
 
 .PHONY: load-spike
 load-spike: ## 10x spike, then check consumer lag drains
-	./loadtest/run.sh spike --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(LOAD_RATE)
+	./loadtest/run.sh spike --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(SPIKE_RATE)
 
 .PHONY: chaos-worker
 chaos-worker: ## SIGKILL worker containers during a run
-	./loadtest/run.sh chaos-worker --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(LOAD_RATE)
+	./loadtest/run.sh chaos-worker --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(CHAOS_RATE)
 
 .PHONY: chaos-endpoints
 chaos-endpoints: ## 30% of endpoints fail (5xx / timeout / 429)
-	./loadtest/run.sh chaos-endpoints --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(LOAD_RATE)
+	./loadtest/run.sh chaos-endpoints --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(CHAOS_RATE)
 
 .PHONY: chaos-db
 chaos-db: ## Restart Postgres during a run
-	./loadtest/run.sh chaos-db --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(LOAD_RATE)
+	./loadtest/run.sh chaos-db --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(CHAOS_RATE)
 
 .PHONY: load-scale
 load-scale: ## Scale workers up and down mid-run (docker compose --scale)
@@ -107,7 +109,7 @@ load-scale: ## Scale workers up and down mid-run (docker compose --scale)
 
 .PHONY: load-compare
 load-compare: ## Same steady load in postgres mode and kafka mode
-	./loadtest/run.sh compare --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(LOAD_RATE)
+	./loadtest/run.sh compare --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(CHAOS_RATE)
 
 # ---------------------------------------------------------------- k8s ----
 

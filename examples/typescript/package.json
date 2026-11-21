@@ -1,0 +1,17 @@
+{
+  "name": "hooklane-examples",
+  "private": true,
+  "type": "module",
+  "description": "Send events to Hooklane and verify its webhooks (Standard Webhooks).",
+  "scripts": {
+    "send": "tsx send-event.ts",
+    "receive": "tsx verify.ts",
+    "selftest": "tsx selftest.ts"
+  },
+  "dependencies": {
+    "standardwebhooks": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0"
+  }
+}
