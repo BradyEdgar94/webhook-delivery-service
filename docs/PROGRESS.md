@@ -127,61 +127,108 @@ Issues found and fixed:
 - In the k8s setup, telemetry export is not wired (no Collector in-cluster);
   the Compose stack is where dashboards/traces are demonstrated.
 
+### Phase 5: Prove it — gate passed, with one test at reduced size (2026-11-20)
+Built: k6 script (`loadtest/load.js`: steady and spike profiles, failing
+endpoint mix), `loadtest/run.sh` (stack per test on fresh volumes, chaos
+actions, disk guard, loadcheck), `crates/loadcheck` (lost, duplicates,
+latency percentiles, SLO, throughput; Markdown report).
+
+Gate evidence (all reports in `docs/results/`, summarised in `docs/RESULTS.md`):
+| Test | Size | Lost | Dup |
+|---|---|---:|---:|
+| steady | 96,377 | 0 | 0 |
+| spike | 99,017 | 0 | 0 |
+| chaos-worker (3 × SIGKILL) | 101,132 | 0 | 17 (explained) |
+| chaos-endpoints (30% failing) | 100,555 | 0 | 0 |
+| chaos-db (Postgres restart) | 98,481 | 0 | 0 |
+| compare pg / kafka | 9,748 / 9,746 | 0 / 0 | 0 / 0 |
+
+Deferred: **compare at the default 100k size was not run**: the host disk
+was at 3.5 GB free and `run.sh` refuses below 4 GB. The 10k comparison (same
+settings, fresh volumes) is real and reported. **1M (`make load-full`) not run**
+for the same reason.
+
+Bottleneck work: API pool 20 -> 64 and `nofile` 65,536 took the steady run
+from 72,064 accepted / 4,221 rejected / 1,332 ev/s sustained to 94,499 /
+0 / 1,741 ev/s (then 1,785 ev/s in the saved run). Remaining limit: whole VM
+CPU-bound, Postgres ~260% CPU; `synchronous_commit` deliberately left on.
+
+### Phase 6: Finish — gate passed (2026-11-20)
+Built: README (Mermaid diagram, quickstart, targets, URLs, results, limits),
+DECISIONS (8 decisions + 16 choices where the spec was open), CONCEPTS,
+CODE_TOUR, OBSERVABILITY (incl. Datadog), RESULTS, INTEGRATION,
+`examples/typescript` (send with idempotency key, verify with
+`standardwebhooks`, selftest), optional Terraform (VPC + NAT/EIP, EKS, ECR, RDS).
+
+Gate evidence:
+- Fresh `git clone` (under the home directory) -> `make up && make demo`:
+  healthy 100/100 (0 duplicates, 0 bad signatures), flaky 97 + 3 retrying,
+  failing 5 attempts then breaker open. (A clone under `/private/tmp` fails
+  only because Colima shares just the home directory with its VM.)
+- `make lint` clean; `make test`: 60 unit + 34 integration tests pass.
+- TypeScript: `npm run selftest` 6/6 against the official npm library, and a
+  real end-to-end run: `send-event.ts` -> Hooklane -> `verify.ts` verified the
+  signature; repeated Idempotency-Key returned `duplicate: true`; a forged
+  request got 401.
+- Terraform: `terraform init -backend=false && terraform validate` -> valid;
+  `terraform fmt -check` clean. **Never applied.** (Provider download deleted
+  afterwards to save disk.)
+
 ## Requirements checklist (spec section 23)
 
 **Architecture**
-- [ ] One binary, roles selected with `--role api|relay|scheduler|worker`; `migrate` and `admin create-tenant` commands
-- [ ] Event, deliveries and outbox rows written in one transaction; API returns 202
-- [ ] Only the relay writes to Kafka; retries re-enter through the outbox
-- [ ] Topic with 64 partitions, keyed by endpoint id
-- [ ] `QUEUE_MODE=kafka|postgres`, both working
-- [ ] Graceful shutdown on SIGTERM in every role; connection retry on Postgres or Kafka outage
+- [x] One binary, roles selected with `--role api|relay|scheduler|worker`; `migrate` and `admin create-tenant` commands
+- [x] Event, deliveries and outbox rows written in one transaction; API returns 202
+- [x] Only the relay writes to Kafka; retries re-enter through the outbox
+- [x] Topic with 64 partitions, keyed by endpoint id
+- [x] `QUEUE_MODE=kafka|postgres`, both working
+- [x] Graceful shutdown on SIGTERM in every role; connection retry on Postgres or Kafka outage
 
 **Data and API**
-- [ ] Seven tables with the unique constraints and partial indexes in section 8
-- [ ] Conditional status updates everywhere, with row counts checked
-- [ ] Idempotency key enforced by a unique constraint
-- [ ] Endpoint CRUD, secret fetch and rotation, recover, delivery log, resend
-- [ ] Cursor pagination on every list route
-- [ ] Tenant scoping on every query; API keys hashed; endpoint secrets encrypted
+- [x] Seven tables with the unique constraints and partial indexes in section 8
+- [x] Conditional status updates everywhere, with row counts checked
+- [x] Idempotency key enforced by a unique constraint
+- [x] Endpoint CRUD, secret fetch and rotation, recover, delivery log, resend
+- [x] Cursor pagination on every list route
+- [x] Tenant scoping on every query; API keys hashed; endpoint secrets encrypted
 
 **Delivery**
-- [ ] Conditional claim before every send
-- [ ] Per-endpoint lanes, contiguous offset commits, backpressure, lane overflow parking
-- [ ] 15 s timeout; 8-attempt schedule with ±20% jitter; `dead` after the last attempt
-- [ ] Classification table implemented, including `Retry-After`, 410 disable, no redirects
-- [ ] Reaper for stuck `delivering` rows
-- [ ] System events on `dead` and on endpoint disable, with no loops
+- [x] Conditional claim before every send
+- [x] Per-endpoint lanes, contiguous offset commits, backpressure, lane overflow parking
+- [x] 15 s timeout; 8-attempt schedule with ±20% jitter; `dead` after the last attempt
+- [x] Classification table implemented, including `Retry-After`, 410 disable, no redirects
+- [x] Reaper for stuck `delivering` rows
+- [x] System events on `dead` and on endpoint disable, with no loops
 
 **Protection**
-- [ ] Token bucket per endpoint, default 50/s, configurable
-- [ ] Circuit breaker with closed, open and half-open states; parking consumes no attempt
-- [ ] Auto-disable after about 5 days failing; recover API
-- [ ] State kept in worker memory, with the reasoning documented
+- [x] Token bucket per endpoint, default 50/s, configurable
+- [x] Circuit breaker with closed, open and half-open states; parking consumes no attempt
+- [x] Auto-disable after about 5 days failing; recover API
+- [x] State kept in worker memory, with the reasoning documented
 
 **Ordering and security**
-- [ ] Best-effort ordering; `webhook-sequence` and event timestamp on every request
-- [ ] Standard Webhooks signing verified against the official library; rotation with two signatures
-- [ ] SSRF: resolved-IP check at connect time, literal-IP check, all listed ranges, HTTPS only by default
-- [ ] `ALLOW_PRIVATE_ENDPOINTS` off by default and warned about when on
+- [x] Best-effort ordering; `webhook-sequence` and event timestamp on every request
+- [x] Standard Webhooks signing verified against the official library; rotation with two signatures
+- [x] SSRF: resolved-IP check at connect time, literal-IP check, all listed ranges, HTTPS only by default
+- [x] `ALLOW_PRIVATE_ENDPOINTS` off by default and warned about when on
 
 **Observability**
-- [ ] All metrics in section 16; end-to-end trace through outbox and Kafka; structured logs
-- [ ] SLO defined; alert rules file; Grafana dashboard provisioned; Jaeger; Datadog instructions
+- [x] All metrics in section 16; end-to-end trace through outbox and Kafka; structured logs (Postgres mode has no outbox, so its traces start at the worker; k8s setup does not export telemetry)
+- [x] SLO defined; alert rules file; Grafana dashboard provisioned; Jaeger; Datadog instructions
 
 **Running and deploying**
-- [ ] `make up` works with only Docker installed; `make demo` works on a fresh clone
-- [ ] Redpanda Console available locally
-- [ ] VS Code tasks, launch configurations and recommended extensions
-- [ ] Kustomize manifests; KEDA scaling on consumer lag; HPA for the API; kind targets
-- [ ] Terraform validated but never applied (or skipped, with the reason stated)
+- [x] `make up` works with only Docker installed; `make demo` works on a fresh clone (verified with a fresh clone; the build and demo use only Docker, curl and standard shell tools)
+- [x] Redpanda Console available locally
+- [x] VS Code tasks, launch configurations and recommended extensions
+- [x] Kustomize manifests; KEDA scaling on consumer lag; HPA for the API; kind targets
+- [x] Terraform validated but never applied (or skipped, with the reason stated)
 
 **Proof**
-- [ ] Unit and integration tests in section 19 pass, in both queue modes where applicable
-- [ ] Sink records every received id; `loadcheck` reports lost, duplicates and latency percentiles
-- [ ] Six load and chaos tests run, with real reports in `docs/results/`
-- [ ] CI workflow
+- [x] Unit and integration tests in section 19 pass, in both queue modes where applicable
+- [x] Sink records every received id; `loadcheck` reports lost, duplicates and latency percentiles
+- [x] Six load and chaos tests run, with real reports in `docs/results/` — five at the default ~100k size; Postgres-vs-Kafka compare at 10k (disk space, see Phase 5)
+- [x] CI workflow
 
 **Documentation**
-- [ ] README, DECISIONS, CONCEPTS, CODE_TOUR, OBSERVABILITY, RESULTS, INTEGRATION, TypeScript examples
-- [ ] Module doc comments and "what would go wrong without this" comments at every guarantee
+- [x] README, DECISIONS, CONCEPTS, CODE_TOUR, OBSERVABILITY, RESULTS, INTEGRATION, TypeScript examples
+- [x] Module doc comments and "what would go wrong without this" comments at every guarantee
