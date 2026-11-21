@@ -74,7 +74,7 @@ Hooklane is that whole second column as a service. The sender makes one HTTP cal
 You need Docker and nothing else.
 
 ```bash
-git clone https://github.com/BradyEdgar94/hooklane.git && cd hooklane
+git clone https://github.com/BradyEdgar94/webhook-delivery-service.git && cd webhook-delivery-service
 make demo
 ```
 
