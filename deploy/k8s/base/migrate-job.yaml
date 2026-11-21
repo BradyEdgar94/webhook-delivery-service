@@ -1,0 +1,19 @@
+# One-shot: migrations + 64-partition topic. Retries until Postgres and
+# Redpanda are reachable (the binary itself also retries with backoff).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: hooklane
+          imagePullPolicy: IfNotPresent
+          args: ["migrate"]
+          envFrom:
+            - configMapRef: {name: hooklane-config}
+            - secretRef: {name: hooklane-secrets}

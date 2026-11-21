@@ -1,1 +1,74 @@
-groups: []
+# Prometheus alert rules for Hooklane. The same file is used by the k8s setup.
+#
+# SLO: 99% of events to healthy endpoints delivered within 60 seconds,
+# measured on first-attempt deliveries (retries are slow by design).
+groups:
+  - name: hooklane-slo
+    rules:
+      - record: hooklane:slo_first_attempt_within_60s:ratio_5m
+        expr: |
+          sum(rate(hooklane_delivery_latency_seconds_bucket{first_attempt="true", le="60.0"}[5m]))
+          /
+          sum(rate(hooklane_delivery_latency_seconds_count{first_attempt="true"}[5m]))
+
+      - alert: HooklaneSLOBurn
+        expr: hooklane:slo_first_attempt_within_60s:ratio_5m < 0.99
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "Fewer than 99% of first-attempt deliveries arrive within 60 s"
+          description: "Current ratio {{ $value | humanizePercentage }}. Check consumer lag, outbox age and worker health."
+
+  - name: hooklane-pipeline
+    rules:
+      # Workers are not keeping up: lag has grown over the last 5 minutes
+      # and is not trivially small. (KEDA should be adding workers; if this
+      # fires, it is not, or the ceiling of 64 partitions has been reached.)
+      - alert: HooklaneConsumerLagGrowing
+        expr: |
+          sum(hooklane_kafka_consumer_lag) > 1000
+          and
+          delta(sum(hooklane_kafka_consumer_lag)[5m:30s]) > 0
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "Kafka consumer lag has been growing for 5 minutes"
+          description: "Total lag {{ $value }}. Workers are falling behind."
+
+      # The relay is stuck or too slow: committed events are not reaching Kafka.
+      - alert: HooklaneOutboxStale
+        expr: max(hooklane_outbox_oldest_unpublished_age_seconds) > 30
+        for: 1m
+        labels: {severity: page}
+        annotations:
+          summary: "Oldest unpublished outbox row is older than 30 s"
+          description: "Is the relay running and can it reach Kafka?"
+
+      - alert: HooklaneDeadDeliveriesRising
+        expr: delta(max(hooklane_deliveries_dead)[15m:1m]) > 100
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "More than 100 deliveries went dead in 15 minutes"
+
+      - alert: HooklaneRetryBacklogOverdue
+        expr: max(hooklane_retry_oldest_overdue_seconds) > 120
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Due retries are not being re-queued (scheduler stuck?)"
+
+      # Many endpoints failing at once usually means the problem is ours
+      # (network, DNS, TLS, egress), not the customers'.
+      - alert: HooklaneOutboundFailureSpike
+        expr: |
+          (
+            sum(rate(hooklane_attempts_total{result="failure"}[5m]))
+            / sum(rate(hooklane_attempts_total[5m]))
+          ) > 0.5
+          and sum(hooklane_breakers_open) > 10
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "Over half of all outbound attempts are failing across many endpoints"
+          description: "Likely a Hooklane-side problem (egress, DNS, TLS), not individual customers."

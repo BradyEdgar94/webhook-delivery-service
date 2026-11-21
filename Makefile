@@ -101,6 +101,10 @@ chaos-endpoints: ## 30% of endpoints fail (5xx / timeout / 429)
 chaos-db: ## Restart Postgres during a run
 	./loadtest/run.sh chaos-db --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(LOAD_RATE)
 
+.PHONY: load-scale
+load-scale: ## Scale workers up and down mid-run (docker compose --scale)
+	./loadtest/run.sh scale --events 40000 --endpoints $(LOAD_ENDPOINTS) --rate 1000
+
 .PHONY: load-compare
 load-compare: ## Same steady load in postgres mode and kafka mode
 	./loadtest/run.sh compare --events $(LOAD_EVENTS) --endpoints $(LOAD_ENDPOINTS) --rate $(LOAD_RATE)

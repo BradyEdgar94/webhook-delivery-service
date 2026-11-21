@@ -66,6 +66,11 @@ pub struct Config {
     #[arg(long, env = "LISTEN_ADDR", default_value = "0.0.0.0:8080")]
     pub listen_addr: String,
 
+    /// Health endpoint (`GET /healthz`) for the relay, scheduler and worker
+    /// roles, used by Kubernetes liveness/readiness probes. Empty = off.
+    #[arg(long, env = "HEALTH_ADDR", default_value = "0.0.0.0:9000")]
+    pub health_addr: String,
+
     /// Base64 of 32 bytes. Encrypts endpoint signing secrets at rest (AES-256-GCM).
     #[arg(
         long,

@@ -66,6 +66,14 @@ pub fn init(config: &Config, role: &str) -> anyhow::Result<Telemetry> {
     let resource = Resource::builder()
         .with_service_name(service_name.clone())
         .with_attribute(KeyValue::new("hooklane.role", role.to_string()))
+        // Unique per process. Without it, two worker replicas export series
+        // with identical labels and the Collector merges them into one,
+        // so counters and gauges would be wrong. (In Docker/k8s HOSTNAME is
+        // the container/pod name.)
+        .with_attribute(KeyValue::new(
+            "service.instance.id",
+            std::env::var("HOSTNAME").unwrap_or_else(|_| uuid::Uuid::now_v7().to_string()),
+        ))
         .build();
 
     let mut tracer_provider = None;

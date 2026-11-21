@@ -159,11 +159,28 @@ async fn run(
     }
 
     let shutdown = shutdown::on_signal();
+    // Non-API roles get a tiny health endpoint for Kubernetes probes. It
+    // answers as long as the process (and its Tokio runtime) is alive.
+    if !matches!(role, Some(Role::Api)) && !config.health_addr.is_empty() {
+        tokio::spawn(serve_health(config.health_addr.clone(), shutdown.clone()));
+    }
     match role {
         Some(Role::Api) => api::run(config, pool, shutdown).await,
         Some(Role::Relay) => relay::run(config, pool, shutdown).await,
         Some(Role::Scheduler) => scheduler::run(config, pool, shutdown).await,
         Some(Role::Worker) => worker::run(config, pool, shutdown).await,
         None => Ok(()),
+    }
+}
+
+async fn serve_health(addr: String, shutdown: tokio_util::sync::CancellationToken) {
+    let app = axum::Router::new().route("/healthz", axum::routing::get(|| async { "ok" }));
+    match tokio::net::TcpListener::bind(&addr).await {
+        Ok(listener) => {
+            let _ = axum::serve(listener, app)
+                .with_graceful_shutdown(async move { shutdown.cancelled().await })
+                .await;
+        }
+        Err(e) => tracing::warn!(%addr, error = %e, "could not start health endpoint"),
     }
 }

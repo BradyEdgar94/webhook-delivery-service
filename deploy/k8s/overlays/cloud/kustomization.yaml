@@ -1,0 +1,39 @@
+# Cloud (EKS) overlay: workers up to 64 (one per partition), real image
+# registry, external Postgres (RDS) instead of the in-cluster one.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [../../base]
+images:
+  - name: hooklane
+    newName: REPLACE_ME.dkr.ecr.us-east-1.amazonaws.com/hooklane
+    newTag: "0.1.0"
+patches:
+  - target: {kind: ScaledObject, name: worker}
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicaCount
+        value: 64
+  # Production must not allow private targets or plain HTTP.
+  - target: {kind: ConfigMap, name: hooklane-config}
+    patch: |-
+      - op: replace
+        path: /data/ALLOW_PRIVATE_ENDPOINTS
+        value: "false"
+      - op: replace
+        path: /data/ALLOW_HTTP
+        value: "false"
+      - op: replace
+        path: /data/DATABASE_URL
+        value: postgres://hooklane@REPLACE_WITH_RDS_ENDPOINT:5432/hooklane
+  - target: {kind: Deployment, name: postgres}
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: postgres}
+  - target: {kind: Service, name: postgres}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata: {name: postgres}

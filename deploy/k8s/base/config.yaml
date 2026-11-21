@@ -1,0 +1,17 @@
+# Non-secret settings shared by every role. SECRET_ENCRYPTION_KEY lives in the
+# `hooklane-secrets` Secret, created by kind-up.sh (never committed).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hooklane-config
+data:
+  DATABASE_URL: postgres://hooklane:hooklane@postgres:5432/hooklane
+  KAFKA_BROKERS: redpanda:9092
+  QUEUE_MODE: kafka
+  DATABASE_MAX_CONNECTIONS: "10"
+  # The demo sink runs inside the cluster on a private address.
+  # Never set these two in a real deployment.
+  ALLOW_PRIVATE_ENDPOINTS: "true"
+  ALLOW_HTTP: "true"
+  SHUTDOWN_GRACE_MS: "25000"
+  RUST_LOG: info

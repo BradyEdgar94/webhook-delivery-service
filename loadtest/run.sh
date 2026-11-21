@@ -3,7 +3,7 @@
 #
 #   loadtest/run.sh <test> [--events N] [--endpoints N] [--rate R] [--workers W] [--mode kafka|postgres]
 #
-# tests: steady | spike | chaos-worker | chaos-endpoints | chaos-db | compare
+# tests: steady | spike | chaos-worker | chaos-endpoints | chaos-db | scale | compare
 #
 # Everything runs in Docker: k6 (grafana/k6 image) and loadcheck (from the
 # hooklane image) join the Compose network. Reports go to docs/results/.
@@ -118,6 +118,15 @@ run_one() { # $1 = test name, $2 = queue mode
       docker compose restart postgres >/dev/null
       docker compose up -d --wait postgres >/dev/null
       notes="Restarted Postgres (docker compose restart) 30 s into the run; it was unavailable for about $(( $(date +%s) - t0 )) s. During the outage the API answered 503 and k6 counted those as rejected (not accepted) events; roles retried their connections and resumed."
+      ;;
+    scale)
+      sleep 15
+      echo "    scaling workers $WORKERS -> 8"
+      docker compose up -d --no-recreate --scale worker=8 worker >/dev/null
+      sleep 25
+      echo "    scaling workers 8 -> 2 (SIGTERM, graceful drain)"
+      docker compose up -d --no-recreate --scale worker=2 worker >/dev/null
+      notes="Changed the worker count mid-run with docker compose --scale: $WORKERS -> 8 at ~15 s, then 8 -> 2 at ~40 s. Scale-down sends SIGTERM; workers drain in-flight deliveries and commit offsets before exiting, and Kafka rebalances their partitions (cooperative-sticky) to the survivors."
       ;;
     spike)
       notes="Base rate $RATE/s with a ${SPIKE_SECS}-second spike at $((RATE * 10))/s (10x)."

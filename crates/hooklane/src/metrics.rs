@@ -20,6 +20,9 @@ pub struct Metrics {
     pub delivery_latency: Histogram<f64>,
     /// Final or intermediate outcome of each attempt: succeeded, retry_scheduled, failed, dead, parked.
     pub deliveries: Counter<u64>,
+    /// HTTP attempts. Labels: `first_attempt` (true/false), `result` (success/failure).
+    /// First-attempt success rate = success / all, where first_attempt="true".
+    pub attempts: Counter<u64>,
     /// Events accepted by the API.
     pub events_ingested: Counter<u64>,
     /// API request duration, seconds. Labels: route, status class.
@@ -66,6 +69,7 @@ pub fn get() -> &'static Metrics {
                 .u64_counter("hooklane.deliveries")
                 .with_description("Delivery outcomes")
                 .build(),
+            attempts: m.u64_counter("hooklane.attempts").build(),
             events_ingested: m.u64_counter("hooklane.events.ingested").build(),
             api_latency: m
                 .f64_histogram("hooklane.api.request.duration")

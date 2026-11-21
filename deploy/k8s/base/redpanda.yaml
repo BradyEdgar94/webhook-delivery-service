@@ -1,0 +1,39 @@
+# Single-node Redpanda (Kafka protocol) for the local cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: redpanda}}
+  template:
+    metadata: {labels: {app: redpanda}}
+    spec:
+      containers:
+        - name: redpanda
+          image: redpandadata/redpanda:v26.2.7
+          args:
+            - redpanda
+            - start
+            - --mode=dev-container
+            - --smp=1
+            - --memory=1G
+            - --kafka-addr=0.0.0.0:9092
+            # Fully qualified, so clients in other namespaces (KEDA in `keda`)
+            # can resolve the address the broker hands back.
+            - --advertise-kafka-addr=redpanda.hooklane.svc.cluster.local:9092
+          ports: [{containerPort: 9092}]
+          readinessProbe:
+            tcpSocket: {port: 9092}
+            periodSeconds: 3
+          resources:
+            requests: {cpu: 500m, memory: 1280Mi}
+            limits: {memory: 1536Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+spec:
+  selector: {app: redpanda}
+  ports: [{port: 9092}]

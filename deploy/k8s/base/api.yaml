@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels: {app: api}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: api}}
+  template:
+    metadata: {labels: {app: api}}
+    spec:
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: api
+          image: hooklane
+          imagePullPolicy: IfNotPresent
+          args: ["--role", "api"]
+          envFrom:
+            - configMapRef: {name: hooklane-config}
+            - secretRef: {name: hooklane-secrets}
+          ports: [{name: http, containerPort: 8080}]
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          # /readyz checks Postgres: while the DB is down the pod is taken out
+          # of the Service instead of receiving requests it cannot serve.
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 200m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector: {app: api}
+  ports: [{port: 8080, targetPort: http}]
+---
+# The API is stateless, so plain CPU-based autoscaling fits it.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: api}
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}

@@ -91,6 +91,42 @@ Gate evidence: integration suite 34/34 (twice in a row), adding
 deliveries queued on a 3-second endpoint, the healthy endpoint is served in
 well under 1.5 s.
 
+### Phase 4: Scale and observe — gate passed (2026-11-20)
+Built: OTel metrics for every item in spec section 16 (+ `hooklane.attempts`
+for first-attempt success rate), traces API -> outbox -> relay -> Kafka header
+-> worker -> outbound HTTP, JSON logs with span fields, Collector ->
+Prometheus + Jaeger, alert rules (`deploy/compose/alerts.yml`, 7 rules,
+`promtool check rules` passes), generated Grafana dashboard (18 panels),
+graceful shutdown, `/healthz` on non-API roles for probes, kustomize base +
+kind and cloud overlays, KEDA ScaledObject on consumer lag, HPA on CPU for the
+API, `make k8s-up` / `k8s-demo` / `k8s-down`.
+
+Gate evidence:
+- Dashboard: every panel query returns data during a run (checked by running
+  each panel's PromQL against Prometheus); only "p50 retried" was empty, since
+  that run had no retries.
+- Jaeger: a single trace contains `hooklane-api:api.ingest`,
+  `hooklane-relay:relay.publish` (x3, one per fanned-out endpoint),
+  `hooklane-worker:worker.deliver` and `hooklane-worker:http.post`.
+- `--scale` mid-run (`make load-scale`, 40k events, workers 4 -> 8 -> 2):
+  **0 lost, 0 duplicates**, SLO met (`docs/results/2026-11-20-scale-kafka-40000.md`).
+- kind (`kind` v0.33 and `kubectl` 1.37 installed with Homebrew): `make k8s-up`
+  brings everything up; `make k8s-demo` at 3000/s: workers scaled
+  1 -> 3 -> 7 -> 11 as lag reached 21k, back to 1 after it drained; all 77,634
+  deliveries succeeded (`docs/results/2026-11-20-k8s-autoscaling.md`).
+
+Issues found and fixed:
+- Worker replicas exported identical metric labels, so the Collector merged
+  their series. Added `service.instance.id` (= HOSTNAME) to the resource.
+- Histogram bucket labels arrive as `le="60.0"`, not `"60"`; SLO queries fixed.
+- KEDA could not resolve Redpanda's advertised short name `redpanda:9092`
+  from its own namespace; the broker now advertises the FQDN.
+- `kind load docker-image` fails for multi-arch images pulled for one platform
+  (`--all-platforms`); kind-up.sh imports via `ctr` directly.
+- KEDA 2.21's metrics deployment is `keda-metrics-apiserver`.
+- In the k8s setup, telemetry export is not wired (no Collector in-cluster);
+  the Compose stack is where dashboards/traces are demonstrated.
+
 ## Requirements checklist (spec section 23)
 
 **Architecture**

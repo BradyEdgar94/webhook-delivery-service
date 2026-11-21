@@ -277,6 +277,13 @@ async fn process_inner(
     };
     m.attempt_duration
         .record(duration.as_secs_f64(), &[kv("status_class", class)]);
+    m.attempts.add(
+        1,
+        &[
+            kv("first_attempt", claimed.attempt_count == 1),
+            kv("result", if succeeded { "success" } else { "failure" }),
+        ],
+    );
     if succeeded {
         let latency = (Utc::now() - claimed.event_created_at)
             .num_milliseconds()

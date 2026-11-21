@@ -43,7 +43,7 @@ services:
       POSTGRES_DB: hooklane
     command: >
       postgres -c max_connections=400 -c shared_buffers=512MB
-               -c effective_cache_size=1GB -c max_wal_size=4GB
+               -c effective_cache_size=1GB -c max_wal_size=1GB
     # Host port 55432 (not 5432) so it never collides with a Postgres
     # already installed on the developer machine.
     ports: ["55432:5432"]
