@@ -1,0 +1,170 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug role: api",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=hooklane",
+          "--package=hooklane"
+        ],
+        "filter": {
+          "name": "hooklane",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "--role",
+        "api"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DATABASE_URL": "postgres://hooklane:hooklane@localhost:55432/hooklane",
+        "KAFKA_BROKERS": "localhost:19092",
+        "ALLOW_PRIVATE_ENDPOINTS": "true",
+        "ALLOW_HTTP": "true",
+        "LOG_FORMAT": "pretty",
+        "RUST_LOG": "info,hooklane=debug",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+        "LISTEN_ADDR": "0.0.0.0:8085"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug role: relay",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=hooklane",
+          "--package=hooklane"
+        ],
+        "filter": {
+          "name": "hooklane",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "--role",
+        "relay"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DATABASE_URL": "postgres://hooklane:hooklane@localhost:55432/hooklane",
+        "KAFKA_BROKERS": "localhost:19092",
+        "ALLOW_PRIVATE_ENDPOINTS": "true",
+        "ALLOW_HTTP": "true",
+        "LOG_FORMAT": "pretty",
+        "RUST_LOG": "info,hooklane=debug",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug role: scheduler",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=hooklane",
+          "--package=hooklane"
+        ],
+        "filter": {
+          "name": "hooklane",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "--role",
+        "scheduler"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DATABASE_URL": "postgres://hooklane:hooklane@localhost:55432/hooklane",
+        "KAFKA_BROKERS": "localhost:19092",
+        "ALLOW_PRIVATE_ENDPOINTS": "true",
+        "ALLOW_HTTP": "true",
+        "LOG_FORMAT": "pretty",
+        "RUST_LOG": "info,hooklane=debug",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug role: worker",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=hooklane",
+          "--package=hooklane"
+        ],
+        "filter": {
+          "name": "hooklane",
+          "kind": "bin"
+        }
+      },
+      "args": [
+        "--role",
+        "worker"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DATABASE_URL": "postgres://hooklane:hooklane@localhost:55432/hooklane",
+        "KAFKA_BROKERS": "localhost:19092",
+        "ALLOW_PRIVATE_ENDPOINTS": "true",
+        "ALLOW_HTTP": "true",
+        "LOG_FORMAT": "pretty",
+        "RUST_LOG": "info,hooklane=debug",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug: unit tests (hooklane lib)",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=hooklane"
+        ],
+        "filter": {
+          "name": "hooklane",
+          "kind": "lib"
+        }
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug: integration tests",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=integration",
+          "--package=hooklane"
+        ],
+        "filter": {
+          "name": "integration",
+          "kind": "test"
+        }
+      },
+      "env": {
+        "TEST_DATABASE_URL": "postgres://hooklane:hooklane@localhost:55432/postgres",
+        "TEST_KAFKA_BROKERS": "localhost:19092"
+      },
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

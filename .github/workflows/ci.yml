@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: sudo apt-get update && sudo apt-get install -y cmake
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.7-bookworm
+        env:
+          POSTGRES_USER: hooklane
+          POSTGRES_PASSWORD: hooklane
+          POSTGRES_DB: hooklane
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hooklane"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      # Redpanda needs a custom command line, which GitHub service containers
+      # do not support, so it is started as a plain container.
+      - name: Start Redpanda
+        run: |
+          docker run -d --name redpanda -p 19092:19092 redpandadata/redpanda:v26.2.7 \
+            redpanda start --mode=dev-container --smp=1 --memory=1G \
+            --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092 \
+            --advertise-kafka-addr=internal://localhost:9092,external://localhost:19092
+          for i in $(seq 1 60); do
+            docker exec redpanda rpk cluster health | grep -E 'Healthy:.+true' && break
+            sleep 2
+          done
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y cmake
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests
+        run: cargo test --workspace --lib --bins
+      - name: Integration tests
+        env:
+          TEST_DATABASE_URL: postgres://hooklane:hooklane@localhost:5432/postgres
+          TEST_KAFKA_BROKERS: localhost:19092
+        run: cargo test -p hooklane --test '*' -- --test-threads=4

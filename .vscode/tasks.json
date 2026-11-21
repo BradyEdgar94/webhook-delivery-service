@@ -1,0 +1,220 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Stack: up",
+      "type": "shell",
+      "command": "make up",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Stack: down",
+      "type": "shell",
+      "command": "make down",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Stack: logs",
+      "type": "shell",
+      "command": "make logs",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Demo",
+      "type": "shell",
+      "command": "make demo",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Test: all",
+      "type": "shell",
+      "command": "make test",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Test: unit",
+      "type": "shell",
+      "command": "make test-unit",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Test: integration",
+      "type": "shell",
+      "command": "make test-integration",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Lint",
+      "type": "shell",
+      "command": "make lint",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Load: steady",
+      "type": "shell",
+      "command": "make load",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Load: full (1M)",
+      "type": "shell",
+      "command": "make load-full",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Load: spike",
+      "type": "shell",
+      "command": "make load-spike",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Chaos: kill workers",
+      "type": "shell",
+      "command": "make chaos-worker",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Chaos: failing endpoints",
+      "type": "shell",
+      "command": "make chaos-endpoints",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Chaos: restart Postgres",
+      "type": "shell",
+      "command": "make chaos-db",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Load: postgres vs kafka",
+      "type": "shell",
+      "command": "make load-compare",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "K8s: up (kind)",
+      "type": "shell",
+      "command": "make k8s-up",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "K8s: demo autoscaling",
+      "type": "shell",
+      "command": "make k8s-demo",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "K8s: down",
+      "type": "shell",
+      "command": "make k8s-down",
+      "problemMatcher": [],
+      "group": "build",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    }
+  ]
+}

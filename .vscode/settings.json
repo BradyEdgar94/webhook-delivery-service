@@ -1,0 +1,11 @@
+{
+  "editor.formatOnSave": true,
+  "[rust]": { "editor.defaultFormatter": "rust-lang.rust-analyzer" },
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.allTargets": true,
+  "rust-analyzer.runnables.extraEnv": {
+    "TEST_DATABASE_URL": "postgres://hooklane:hooklane@localhost:55432/postgres",
+    "TEST_KAFKA_BROKERS": "localhost:19092"
+  },
+  "files.exclude": { "**/target": true }
+}

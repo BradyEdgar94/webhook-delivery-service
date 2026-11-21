@@ -1,0 +1,7 @@
+/target
+.env
+loadtest/out/
+*.log
+.DS_Store
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate*

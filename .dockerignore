@@ -1,0 +1,5 @@
+target
+.git
+docs/results
+loadtest/out
+.env
